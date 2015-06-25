@@ -20,6 +20,7 @@ using std::abs;
 using std::array;
 using std::bernoulli_distribution; 
 using std::cin;
+using std::copy;
 using std::cout;
 using std::endl;
 using std::get;
@@ -30,6 +31,8 @@ using std::knuth_b;
 using std::list;
 using std::lower_bound;
 using std::map;
+using std::max;
+using std::min;
 using std::mt19937;
 using std::multimap;
 using std::normal_distribution;
@@ -51,9 +54,6 @@ using std::uniform_real_distribution;
 using std::unique;
 using std::unordered_map;
 using std::vector;
-using std::max;
-using std::min;
-using std::copy;
 
 const double pi = M_PI;
 
