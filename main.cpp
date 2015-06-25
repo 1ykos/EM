@@ -58,7 +58,7 @@ using std::vector;
 const double pi = M_PI;
 
 template<class T>
-inline constexpr T pow(const T base, unsigned const exponent)
+inline constexpr T pow(const T &base, unsigned const &exponent)
 {
     // (parentheses not required in next line)
     return (exponent == 0)     ? 1 :
