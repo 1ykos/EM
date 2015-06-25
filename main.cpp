@@ -57,6 +57,7 @@ using std::vector;
 
 const double pi = M_PI;
 
+// faster pow implementation for integer powers - is there something more elegant?
 template<class T>
 inline constexpr T pow(const T &base, unsigned const &exponent)
 {
