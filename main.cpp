@@ -16,6 +16,8 @@
 #include <vector>
 #include <functional>
 
+#define N 2 // number of gaussians in the mixture model
+
 using std::abs;
 using std::array;
 using std::bernoulli_distribution; 
@@ -30,6 +32,7 @@ using std::istream;
 using std::knuth_b;
 using std::list;
 using std::lower_bound;
+using std::lognormal_distribution;
 using std::map;
 using std::max;
 using std::min;
@@ -40,6 +43,7 @@ using std::numeric_limits;
 using std::ofstream;
 using std::pair;
 using std::random_device;
+using std::random_shuffle;
 using std::reverse_iterator;
 using std::round;
 using std::setw;
@@ -51,196 +55,172 @@ using std::stringstream;
 using std::swap;
 using std::tuple;
 using std::uniform_real_distribution;
+using std::uniform_int_distribution;
 using std::unique;
 using std::unordered_map;
 using std::vector;
 
 const double pi = M_PI;
+random_device urandom;
+mt19937 urng(urandom());
 
-// faster pow implementation for integer powers - is there something more elegant?
-template<class T>
-inline constexpr T pow(const T &base, unsigned const &exponent)
-{
-    // (parentheses not required in next line)
-    return (exponent == 0)     ? 1 :
-           (exponent % 2 == 0) ? pow(base, exponent/2)*pow(base, exponent/2) :
-           base * pow(base, (exponent-1)/2) * pow(base, (exponent-1)/2);
-}
-
-static const double gaussian(const double& x, const double& m, const double s){
-  return exp(-(x-m)*(x-m)/(2*s*s))/(s*sqrt(2*pi));
-}
-                        //weight,μ     ,σ
-static const vector<tuple<double,double,double>> ex_max_gauss(
-  const vector<tuple<double,double>> &data, n){
-  vector<tuple<double,double,double>> distr0;
-  distr0.reserve(min(n,data.size()));
-  for(auto it=data.begin();it!=data.end()&&distr0.size()<n;++it){
-    distr0.push_back(1.0,get<0>(*it),get<1>(*it));
-  }
-  for (auto it=distr0.begin();it!=distr0.end();++it){
-    get<0>(*it)=1.0/distr0.size();
-  }
-  vector<tuple<double,double,double>> distr1=distr0;
-  for (double change=numeric_limits<double>::infinity();change>1e-10;){
-    //distr0 old, distr1 new
-    distr0=distr1;
-    for (auto it0=distr0.begin(),it1=distr1.begin();
-           it0!=distr0.end()&&it1!=distr1.end(); (++it0,++it1)){
-      douleb t_n=0;
-      for (auto it0=distr0.begin(); it0!=distr0.begin(); ++it0){
-        for (auto it=data.begin(); it!=data.end(); ++it){
-          const double m1=get<0>(*it);
-          const double s1=get<1>(*it);
-          const double t =get<0>(*it0);
-          const double m2=get<1>(*it0);
-          const double s2=get<2>(*it0);
-//           const double m = (m1/(s1*s1)+m2/(s2*s2))
-//           /(1.0/(s1*s1)+1.0/(s2*s2));
-//           const double s = s1*s1*s2*s2/(s1*s1+s2*s2);
-//           integrate(gaussian(m1,m2,sqrt(s1**2+s2**2))*gaussian(x,m,s))
-          t_n+=t*gaussian(m1,m2,sqrt(s1*s1+s2*s2));
-        }
-      }
-      for (auto it0=distr0.begin(),it1=distr1.begin();
-           it0!=distr0.end()&&it1!=distr1.end(); (++it0,++it1)){
-        get<0>(*it1)=0;
-        for (auto it=data.begin(); it!=data.end(); ++it){
-          const double m1=get<0>(*it);
-          const double s1=get<1>(*it);
-          const double t =get<0>(*it0);
-          const double m2=get<1>(*it0);
-          const double s2=get<2>(*it0);
-          get<0>(*it1)+=t*gaussian(m1,m2,sqrt(s1*s1+s2*s2));
-        }
-      }
-      for (auto it0=distr0.begin(); it0!=distr0.begin(); ++it0){
-        
-        for (auto it=data.begin(); it!=data.end(); ++it){
-          const double m1=get<0>(*it);
-          const double s1=get<1>(*it);
-          const double m2=get<1>(*it0);
-          const double s2=get<2>(*it0);
-//           const double m = (m1/(s1*s1)+m2/(s2*s2))
-//           /(1.0/(s1*s1)+1.0/(s2*s2));
-//           const double s = s1*s1*s2*s2/(s1*s1+s2*s2);
-//           integrate(gaussian(m1,m2,sqrt(s1**2+s2**2))*gaussian(x,m,s))
-          get<0>(*it0)=get<0>gaussian(m1,m2,sqrt(s1*s1+s2*s2));
-        }
-      }
-      
-    }
-    for (auto it=data.begin(); it!=data.end(); ++it){
-      for (auto it0=distr0.begin(),it1=distr1.begin();
-           it0!=distr0.end()&&it1!=distr1.end(); (++it0,++it1)){
-      }
-      get<0>(*it1)=new wheight;
-      get<1>(*it1)=new mean;
-      for (auto it0=distr0.begin(),it1=distr1.begin();
-           it0!=distr0.end()&&it1!=distr1.end(); (++it0,++it1)){
-        get<2>(it1)=
-        
-      }
-    }
-  }
-}
-
-void generate_distributions(
-  const unordered_map<size_t,vector<tuple<size_t,double,double>>> &uniques,
-  unordered_map<size_t,PPD> &distr,
-  const column_vector &starting_point
+template<typename T> inline const void kahan_sum(
+  const T &x,
+  T &c,
+  T &sum
 ){
-  cout << "generating partiality distributions" << endl;
-  for (auto it0=uniques.begin(); it0!=uniques.end(); ++it0){
-    double mean=0.0;
-    for (auto it1=it0->second.begin();it1!=it0->second.end();++it1){
-      mean += get<1>(*it1);
-    }
-    //initialization
-    mean/=it0->second.size();
-    distr[it0->first]={0.0,mean,4*mean,4*mean,0.75};
-    //maximization
-    for (size_t i=0; i<8; ++i){
-      const double n = it0->second.size();
-      double s_t1 =0;
-      double s_t2 =0;
-      double m1_n =0;
-      double m2_n =0;
-      for (auto it1=it0->second.begin();it1!=it0->second.end();++it1){
-        const double t1=distr[it0->first].t1;
-        const double t2=1-t1;
-        const double s =starting_point(get<0>(*it1));
-        const double x =get<1>(*it1)*s;
-        //         cout << x << endl;
-        const double m1=distr[it0->first].m1;
-        const double m2=distr[it0->first].m2;
-        const double s1=distr[it0->first].s1;
-        const double s2=distr[it0->first].s2;
-        const double e1=(s1*s1*128<(x-m1)*(x-m1))?t1*0.00311664:t1*exp(-(x-m1)*(x-m1)/(2*s1*s1))/(s1*sqrt(2*pi));
-        const double e2=(s2*s2*128<(x-m2)*(x-m2))?t2*0.00311664:t2*exp(-(x-m2)*(x-m2)/(2*s2*s2))/(s2*sqrt(2*pi));
-        //         const double t1i =(abs(e1)+abs(e2)<1e-10)?(e1>e2?1:0):e1/(e1+e2);
-        //         const double t2i =(abs(e1)+abs(e2)<1e-10)?(e2>e1?1:0):e2/(e1+e2);
-        const double t1i =e1/(e1+e2);
-        const double t2i =e2/(e1+e2);
-        //         cout << x << " " << m1 << " " << m2 << " " << s1 << " " << s2 << " " << e1 << " " << e2 << " " << t1i << " " << t2i << endl;
-        s_t1 += t1i;
-        s_t2 += t2i;
-        m1_n += t1i*x;
-        m2_n += t2i*x;
-        //         cout << s_t1 << " " << s_t2 << " " << m1_n << " " << m2_n << endl;
-      }
-      //       cout << m1_n/s_t1 << " " << m2_n/s_t2 << endl;
-      double s1_n =0;
-      double s2_n =0;
-      for (auto it1=it0->second.begin();it1!=it0->second.end();++it1){
-        const double t1=distr[it0->first].t1;
-        const double t2=1-t1;
-        const double m1=distr[it0->first].m1;
-        const double m2=distr[it0->first].m2;
-        const double s =starting_point(get<0>(*it1));
-        const double x =get<1>(*it1)*s;
-        const double s1=distr[it0->first].s1;
-        const double s2=distr[it0->first].s2;
-        const double e1=(s1*s1*128<(x-m1)*(x-m1))?0.00311664:t1*exp(-(x-m1)*(x-m1)/(2*s1*s1))/(s1*sqrt(2*pi));
-        const double e2=(s2*s2*128<(x-m2)*(x-m2))?0.00311664:t2*exp(-(x-m2)*(x-m2)/(2*s2*s2))/(s2*sqrt(2*pi));
-        //         const double t1i =(abs(e1)+abs(e2)<1e-10)?(e1>e2?1:0):e1/(e1+e2);
-        //         const double t2i =(abs(e1)+abs(e2)<1e-10)?(e2>e1?1:0):e2/(e1+e2);
-        const double t1i =e1/(e1+e2);
-        const double t2i =e2/(e1+e2);
-        //         cout << t1 << " " << x << " " << m1 << " " << m2 << " " << s1 << " " << s2 << " " << e1 << " " << e2 << " " << t1i << " " << t2i << endl;
-        s1_n += t1i*(x-m1_n/s_t1)*(x-m1_n/s_t1); // dot product
-        s2_n += t2i*(x-m2_n/s_t2)*(x-m2_n/s_t2); // dot product
-        //         cout << s1_n << " " << s2_n << endl;
-      }
-      //       cout << sqrt(abs(s1_n/s_t1)) << " " << sqrt(abs(s2_n/s_t2)) << endl;
-      distr[it0->first].t1 = s_t1/n;
-      distr[it0->first].m1 = m1_n/s_t1;
-      distr[it0->first].m2 = m2_n/s_t2;
-      distr[it0->first].s1 = sqrt(abs(s1_n/s_t1));
-      distr[it0->first].s2 = sqrt(abs(s2_n/s_t2));
-      if (distr[it0->first].m2<distr[it0->first].m1){
-        swap(distr[it0->first].m2,distr[it0->first].m1);
-        swap(distr[it0->first].s2,distr[it0->first].s1);
-        distr[it0->first].t1=1-distr[it0->first].t1;
-      }
-      if (distr[it0->first].s1<max(distr[it0->first].m2,distr[it0->first].m1)/10){
-        distr[it0->first].s1=max(distr[it0->first].m2,distr[it0->first].m1)/10;
-      }
-      if (distr[it0->first].s1<max(abs(distr[it0->first].m2),abs(distr[it0->first].m1))/10){
-        distr[it0->first].s1=max(abs(distr[it0->first].m2),abs(distr[it0->first].m1))/10;
-      }
-      if (distr[it0->first].t1<0.015625) distr[it0->first].t1=0.015625;
-      if (distr[it0->first].t1>0.984375) distr[it0->first].t1=0.984375;
-      if (isnan(distr[it0->first].m1)||isnan(distr[it0->first].m2)||isnan(distr[it0->first].s1)||isnan(distr[it0->first].s2)){
-        cout <<  "maan schon wieder ein nan :( " << endl;
-        exit(-1);
-      }
-    }
-    //     cout << mean << " " << distr[it0->first].m1 << " " << distr[it0->first].m2 << endl;
-  }
+  const T y=x-c;
+  const T t=sum+y;
+  c = (t-sum)-y;
+  sum=t;
 }
+
+template<typename T> inline const void mean_variance(
+  const T &x,
+  const T &w,
+  T &sumw,
+  T &mean,
+  T &M2
+){
+  const T temp = w+sumw;
+  const T delta = x-mean;
+  const T R = delta*w/temp;
+  mean += R;
+  M2 += sumw*delta*R;
+  sumw = temp;
+}
+
+template<typename T> inline const T variance(
+  const T &M2,
+  const T &sumw,
+  const size_t &n
+){
+  return M2*n/(sumw*(n-1));
+}
+
+template<typename T> inline const T variance(
+  const T &M2,
+  const T &sumw
+){
+  return M2/sumw;
+}
+
+const vector<array<double,3>> ex_max(
+  const vector<array<double,2>> &data,
+  const size_t &n
+){
+  double mean=0;
+  double sumw=0;
+  double M2=0;
+  for (auto it=data.begin(); it!=data.end(); ++it){
+    mean_variance((*it)[0],(*it)[1],sumw,mean,M2);
+  }
+  const double s = sqrt(variance(M2,sumw,data.size()));
+  vector<array<double,3>> model(n); // weight,mean,sigma
+  // initialize the model with equal weights,
+  // random points from the dataset as mean
+  // and the square root of the over all variance
+  for (size_t i=0; i!=n; ++i){
+    model[i]={{1.0/n,data[i][0],s/n}};
+  }
+  vector<array<double,5>> temp(n); // sumw,mean,M2,T,TS
+  double change;
+  do{
+    change=0.0;
+    double TS = 0.0;
+    for (auto t=temp.begin(); t!=temp.end(); ++t){
+      (*t)[4]=0.0;
+    }
+    for (auto d=data.begin(); d!=data.end(); ++d){
+      auto t=temp.begin();
+      auto m=model.begin();
+      for (;m!=model.end()&&t!=temp.end(); (++m,++t)){
+        const double s2=(*m)[2]*(*m)[2]+(*d)[1]*(*d)[1];
+        const double i =
+          exp(-((*d)[0]-(*m)[1])*((*d)[0]-(*m)[1])/(2.0*s2))/sqrt(2*s2*pi);
+        TS+=i;
+        (*t)[4]+=i;
+      }  
+    }  
+    for (auto t=temp.begin(); t!=temp.end(); ++t){
+      (*t)[0]=(*t)[1]=(*t)[2]=(*t)[3]=0.0;
+    }
+    {
+      auto t=temp.begin();
+      auto m=model.begin();
+      for (;m!=model.end()&&t!=temp.end(); (++m,++t)){
+        change+=((*m)[0]-(*t)[4]/TS)*((*m)[0]-(*t)[4]/TS);
+        (*m)[0]=(*t)[4]/TS;
+      }
+    }
+    for (auto d=data.begin(); d!=data.end(); ++d){
+      double T = 0.0;
+      auto t=temp.begin();
+      auto m=model.begin();
+      for (;m!=model.end()&&t!=temp.end(); (++m,++t)){
+        const double s2=(*m)[2]*(*m)[2]+(*d)[1]*(*d)[1];
+        const double i =
+          exp(-((*d)[0]-(*m)[1])*((*d)[0]-(*m)[1])/(2.0*s2))/sqrt(2*s2*pi);
+        if (isnan(i)){
+          cout << (*d)[0] << " "
+               << (*m)[1] << " "
+               << (*m)[2] << " "
+               << (*d)[1] << endl;
+          cout << "NAAAAN !!! !!! " << endl;
+          exit(0);
+        }
+        T+=i;
+        (*t)[3]=i;
+      }
+      t=temp.begin();
+      m=model.begin();
+      if (T<numeric_limits<double>::epsilon()) continue;
+      for (;m!=model.end()&&t!=temp.end(); (++m,++t)){
+        if ((*t)[3]<numeric_limits<double>::epsilon()) continue;
+        const double x = (*d)[0];
+        const double w = (*t)[3]*(*m)[0]/(T*(*d)[1]*(*d)[1]);
+        mean_variance(x,w,(*t)[0],(*t)[1],(*t)[2]);
+      }
+    }
+    {
+      auto t=temp.begin();
+      auto m=model.begin();
+      for (;m!=model.end()&&t!=temp.end(); (++m,++t)){
+        change+=((*m)[0]-(*t)[4]/TS)*((*m)[0]-(*t)[4]/TS);
+        change+=((*m)[1]-(*t)[1])*((*m)[1]-(*t)[1]);
+        change+=((*m)[2]-variance((*t)[2],(*t)[0]))
+               *((*m)[2]-variance((*t)[2],(*t)[0]));
+        (*m)[0]=(*t)[4]/TS;
+        (*m)[1]=(*t)[1];
+        (*m)[2]=variance((*t)[2],(*t)[0]);
+      }
+    }
+    cout << change << endl;
+  }while(change>1e-24);
+  return model;
+}
+                                     
 
 int main(int argc, char *argv[]){
-  
+  lognormal_distribution<double> lognormal;
+  uniform_int_distribution<size_t> uniform(0,N-1);
+  vector<array<double,2>> data;
+  for (size_t i=0; i<256*N; ++i){
+    const double s = lognormal(urng);
+    data.push_back({normal_distribution<double>(uniform(urng),s)(urng),s});
+//     data.push_back({normal_distribution<double>(uniform(urng),0.5)(urng),0.1});
+  }
+//   for (auto it=data.begin(); it!=data.end(); ++it){
+//     cout << setw(16) << (*it)[0] << setw(16) << (*it)[1] << endl;
+//   }
+//   cout << " * * * * * * * * * * * * * * * * * * * * * * * * " << endl;
+  vector<array<double,3>> model = ex_max(data,N);
+  cout << " * * * * * * * * * * * * * * * * * * * * * * * * " << endl;
+  cout << setw(16) << "weight" << setw(16) << "mean" << setw(16) << "sigma" << endl; 
+  sort(model.begin(),model.end(),
+       [](const array<double,3> &a, const array<double,3> &b){return a[1]<b[1];});
+  for (auto it=model.begin(); it!=model.end(); ++it){
+    cout << setw(16) << (*it)[0] << setw(16) << (*it)[1] << setw(16) << (*it)[2] << endl;    
+  }
   return 0;  
 }
