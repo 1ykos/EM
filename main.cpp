@@ -123,38 +123,13 @@ const vector<array<double,3>> ex_max(
   for (size_t i=0; i!=n; ++i){
     model[i]={{1.0/n,data[i][0],v/n}};
   }
+  model[0]={{1.0/n,0.0,v/n}};
+  model[1]={{1.0/n,1.0,v/n}};
   vector<array<double,5>> temp(n); // sumw,mean,M2,T,TS
   double change;
   do{
     change=0.0;
     double TS = 0.0;
-//     for (auto t=temp.begin(); t!=temp.end(); ++t){
-//       (*t)[0]=(*t)[1]=(*t)[2]=(*t)[3]=(*t)[4]=0.0;
-//     }
-//     for (double i=0; i<1.005; i+=0.01){
-//       double T = 0.0;
-//       cout << setw(16) << i ;
-//       auto t=temp.begin();
-//       auto m=model.begin();
-//       for (;m!=model.end()&&t!=temp.end(); (++m,++t)){
-//         const double m1= i;
-//         const double v1= 0.01*0.01;
-//         const double m2= (*m)[1];
-//         const double v2= (*m)[2];
-//         const double i = exp(-(m1-m2)*(m1-m2)/(2*(v1+v2)))/sqrt(2*pi*(v1+v2));
-//         T+=i;
-//         (*t)[3]=i;
-//         (*t)[4]+=i;
-//       }
-//       t=temp.begin();
-//       m=model.begin();
-//       for (;m!=model.end()&&t!=temp.end(); (++m,++t)){
-//         const double v = 0.01*0.01;
-//         const double w = (*t)[3]/(T*v);
-//         cout << setw(16) << round(w);
-//       }
-//       cout << endl;
-//     }
     for (auto t=temp.begin(); t!=temp.end(); ++t){
       (*t)[0]=(*t)[1]=(*t)[2]=(*t)[3]=(*t)[4]=0.0;
     }
@@ -169,7 +144,7 @@ const vector<array<double,3>> ex_max(
         const double v1= (*d)[1]*(*d)[1];
         const double m2= (*m)[1];
         const double v2= (*m)[2];
-        const double i = exp(-(m1-m2)*(m1-m2)/(2*(v1+v2)))/sqrt(2*pi*(v1+v2));
+        const double i = exp(-(m1-m2)*(m1-m2)/(2*(v2)))/sqrt(2*pi*(v2));
         T+=i;
         TS+=i;
         (*t)[3]=i;
@@ -183,7 +158,6 @@ const vector<array<double,3>> ex_max(
         const double m = (*d)[0];
         const double v = (*d)[1]*(*d)[1];
         const double w = (*t)[3]/(T*v);
-//         cout << setw(16) << m << setw(16) << w << endl;
         mean_variance(m,w,(*t)[0],(*t)[1],(*t)[2]);
       }
     }
@@ -202,7 +176,6 @@ const vector<array<double,3>> ex_max(
       }
     }
     cout << "--------------------------------" << endl;
-//     cout << change << endl;
   }while(change>1e-24);
   return model;
 }
